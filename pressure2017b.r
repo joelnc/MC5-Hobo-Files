@@ -177,7 +177,9 @@ regTS <- data.frame(dt=seq.POSIXt(to=tail(cDoug$dt,6)[6], by=300,
                                     from=cDoug$dt[1]), kp=1)
 
 cDoug <- merge(cDoug, regTS, by="dt", all=TRUE)
-cDoug  <- aggregate(cDoug[ ,c(3,4,5,6)], by=list(cDoug$dt), sum)
+## Apparently unnecessary, previously incorrect (used sum)....
+## ... could be used to average duplicate time stamp data, but there are none....
+cDoug  <- aggregate(cDoug[ ,c(3,4,5,6)], by=list(cDoug$dt), mean)
 
 ## Interpolate the temperature series to the even 5 min time stamps
 zooObj <- zoo(cDoug$tempC, cDoug$Group.1)
@@ -185,9 +187,9 @@ spline1 <- na.spline(zooObj, na.rm=FALSE)
 cDoug$modTemp <- coredata(spline1)
 
 ## Interpolate the hpa series to the even 5 min time stamps
-zooObj2 <- zoo(cDoug$slpHPa,cDoug$Group.1)
+zooObj2 <- zoo(cDoug$slpHgIn,cDoug$Group.1)
 spline2 <- na.spline(zooObj2,na.rm=FALSE)
-cDoug$modHPa <- coredata(spline2)
+cDoug$modHgIn <- coredata(spline2)
 
 ## Merge and compare again... very similar model
 compareTemps2 <- merge(cDoug, airFrame, by.x="Group.1", by.y="dt",
@@ -205,7 +207,7 @@ lines(x=c(-9,38),y=c(tidy2$estimate[2]*-9+tidy2$estimate[1],
 glance(modelModel)
 
 ## Do regression back fill from dataModel (not modelModel)
-af3 <- merge(airFrame2, cDoug, by.x="dt", by.y="Group.1", all=FALSE)
+af3 <- merge(airFrame, cDoug, by.x="dt", by.y="Group.1", all=FALSE)
 af3[,"mc5tempC"] <- (af3[,3]-32)/1.8
 af3[which(is.na(af3[,"mc5tempC"])),"mc5tempC"] <-
     tidy1$estimate[2]*af3[which(is.na(af3[,"mc5tempC"])),"modTemp.y"]+
