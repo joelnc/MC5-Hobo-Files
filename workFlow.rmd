@@ -1,0 +1,177 @@
+---
+title: "MC5 Hobo Pressure Workflow"
+output: html_document
+---
+The markdown file documents the data processing of Hobo pressure
+records collected at the MC5 / McDowell Trib monitoring location.
+***
+## Standard Initialization and Needed Libraries
+```{r}
+## Clear stuff
+rm(list=ls())
+graphics.off()
+
+library("zoo")
+library("broom")
+
+## Set working directory
+setwd("c:/Users/95218/Documents/R/MC5")
+```
+***
+# Define a Function to Read In Raw .csv Files
+The atmospheric and water pressure files are not necessarily
+synchronized in time.  Use a spline fit to predict data on the 0:00,
+0:05, 0:10 stamps, from the raw data which may be 0:02, 0:07, 0:12, ....
+
+```{R}
+## Function to run through a list of data framess, name columns, covert dates
+readHoboInterp <- function(dataFile) {
+    ## Read in file, rename resulting df columns
+    data <- read.csv(paste0("c:/Users/95218/Documents/R/MC5/", dataFile),
+                  sep=",", stringsAsFactors=FALSE, skip=1, header=TRUE)
+    data <- data[ ,c(2,3,4)]
+    names(data) <- c("dt", "hoboPSI", "hoboF")
+
+    ## Format dates from excel files
+    data$dt <- strptime(data$dt, format="%m/%d/%y %I:%M:%S %p",
+                        tz="America/Panama")
+    data$dt <- as.POSIXct(data$dt)
+
+    ## Create regulalry spaced 5 minute time series overlapping data file
+    regTS <- data.frame(dt=seq.POSIXt(to=tail(data$dt,6)[6], by=300,
+                      from=round(data$dt[1],"mins")-
+                          (round(data$dt[1],"mins")$min%%5)*60), kp=1)
+
+    ## Merge even spaced dt with raw data frame
+    dataMerged <- merge(data, regTS, by="dt", all=TRUE)
+
+    ## Interpolate the psi series to the even 5 min time stamps
+    zooObj <- zoo(dataMerged[2], dataMerged$dt)
+    spline1 <- na.spline(zooObj, na.rm=FALSE)
+    dataMerged$modPsi <- coredata(spline1)
+
+    ## Interpolate the temperature series to the even 5 min time stamps
+    zooObj2 <- zoo(dataMerged[3], dataMerged$dt)
+    spline2 <- na.spline(zooObj2, na.rm=FALSE)
+    dataMerged$modTemp <- coredata(spline2)
+
+    ## drop all but dt, interp temp, interp psi
+    dataMerged <- dataMerged[which(dataMerged$kp==1),c(1,5,6)]
+
+    return(dataMerged)
+}
+```
+
+# Create file lists of all air and water files in the given directory
+```{r}
+## Read the directories of files that CB sent
+dataAir <- as.list(list.files(path="c:/Users/95218/Documents/R/MC5",
+                      pattern="Air.*\\.csv", recursive=TRUE))
+names(dataAir) <- paste0("file", seq(1:length(dataAir)))
+
+dataWater <- as.list(list.files(path="c:/Users/95218/Documents/R/MC5",
+                    pattern="Water.*\\.csv", recursive=TRUE))
+names(dataAir) <- paste0("file",seq(1:length(dataAir)))
+```
+
+## Pass those file lists into the function readHoboInterp (defined above)
+```{r}
+## Pass df of water press. file names to f(), rbind results, sort
+waterList <- lapply(dataWater, readHoboInterp)
+waterFrame <- do.call("rbind", waterList)
+waterFrame <- waterFrame[order(waterFrame$dt), ]
+
+## Pass df of air press. file names to f(), rbind results, sort
+airList <- lapply(dataAir, readHoboInterp)
+airFrame <- do.call("rbind", airList)
+airFrame <- airFrame[order(airFrame$dt), ]
+```
+
+### For any gaps in time within the air records, insert the time stamp and NAs for data
+```{r}
+## Fill gaps with NAs, tempertature regression and pressure convr. from CLT
+gapFill <- data.frame(dt=seq.POSIXt(to=tail(airFrame$dt,6)[6], by=300,
+                      from=airFrame$dt[1]))
+airFrame <- merge(airFrame, gapFill, by="dt", all=TRUE)
+
+## Drop nested names
+dimnames(airFrame$modPsi) <- NULL
+dimnames(airFrame$modTemp) <- NULL
+
+## Clean up
+rm(dataAir, dataWater, readHoboInterp, gapFill, waterList, airList)
+```
+***
+# Plot the 5 minute data (interpolated to even stamps)
+This plot shows that we have temporal gaps in both records.  Water is
+not correctable, but air can potentially be backfilled by atmospheric
+pressure data from elsewhere (e.g, CLT).
+
+```{r include = TRUE}
+## Plot spline fits from raw pressure files
+dateTicks <- seq.POSIXt(from=min(waterFrame$dt,airFrame$dt,na.rm=TRUE),
+                      to=max(waterFrame$dt,airFrame$dt,na.rm=TRUE),
+                      by="month")
+
+## pdf(file="MC5 Pressure.pdf", width=10, height=7.5) # to plot to pdf
+#dev.new(width=10,height=7.5, xpos=1930,ypos=65)
+par(xaxs="i", yaxs="i", mai=c(1,1.5,.5,.5), font=2,
+    cex.axis=1.2, family="serif", omi=rep(0,4))
+plot(waterFrame$dt, waterFrame$modPsi, pch=16,
+     axes=FALSE, xlab="", ylab="", ylim=c(13,18), cex=.2)
+points(airFrame$dt, airFrame$modPsi, pch=16, col="red", cex=.2)
+box()
+axis.POSIXct(side=1, at=dateTicks, x=dateTicks, format="%b-%y")
+axis(2, las=2)
+mtext(side=2, "Pressure (psi)", line=3.5, cex=1.5, font=2)
+legend("topleft", legend=c("Air", "Water"), pch=16,
+       col=c("red", "black"), bty="n", pt.cex=0.75, cex=1.5)
+## dev.off() # to close pdf device, when using
+```
+
+******
+# Load CLT Airport Data File
+From
+[NOAA, Mecklenburg/ FIPS:37119](https://www.ncdc.noaa.gov/cdo-web/search),
+hourly nomrals.
+
+```{r}
+## Load in the Airport data, format and clean up NAs
+cDoug <- read.csv("charDougMet.txt", header=FALSE, skip=2,
+                  stringsAsFactors=FALSE)
+cDoug <- cDoug[ ,c(3,4,21,25)]
+```
+
+
+```{r}
+
+for (i in 1:nrow(cDoug)) {
+    if (nchar(cDoug$V4[i])==3) {
+        cDoug$V4[i] <- paste0("0",cDoug$V4[i])
+    }
+    if (nchar(cDoug$V4[i])==2) {
+        cDoug$V4[i] <- paste0("00",cDoug$V4[i])
+    }
+    if (nchar(cDoug$V4[i])==1) {
+        cDoug$V4[i] <- paste0("000",cDoug$V4[i])
+    }
+    if (!is.na(cDoug$V25[i]) & cDoug$V25[i]>9000) {
+        cDoug$V25[i] <- NA
+    }
+    if (!is.na(cDoug$V21[i]) & cDoug$V21[i]>800) {
+        cDoug$V21[i] <- NA
+    }
+}
+
+## Date and time are in UTC, stored numeric.  Do some base R gymnastics to
+## convert to a EST posix.ct value.
+cDoug$dt <- strptime(x=paste(cDoug$V3, cDoug$V4, sep=""),
+                     format="%Y%m%d %H%M", tz="UTC") ## make date time obj
+cDoug$dt <- as.POSIXct(cDoug$dt) ## convert from lt to ct
+## Format to an EST character array
+cDoug$dt <- format(cDoug$dt, tz="America/Panama", usetz=TRUE)
+## as.POSIXct it again away from chr...
+cDoug$dt <- as.POSIXct(cDoug$dt, format="%Y-%m-%d %T", tz="America/Panama")
+
+names(cDoug) <- c("date", "time", "tempC", "slpHPa", "dt")
+```
