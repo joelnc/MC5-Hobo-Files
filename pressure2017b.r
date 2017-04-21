@@ -21,7 +21,7 @@ library("broom")
 readHoboInterp <- function(dataFile) {
     ## Read in file, rename resulting df columns
     data <- read.csv(paste0(
-        "c:/Users/95218.CHARLOTTE/Documents/R/MC5-Hobo-Files/", dataFile),
+        "c:/Users/95218/Documents/R/MC5/", dataFile),
         sep=",", stringsAsFactors=FALSE, skip=1, header=TRUE)
     data <- data[ ,c(2,3,4)]
     names(data) <- c("dt", "hoboPSI", "hoboF")
@@ -60,12 +60,12 @@ readHoboInterp <- function(dataFile) {
 
 ## Read in and format the directories of files that CB sent
 dataAir <- as.list(list.files(
-    path="c:/Users/95218.CHARLOTTE/Documents/R/MC5-Hobo-Files",
+    path="c:/Users/95218/Documents/R/MC5",
     pattern="Air.*\\.csv", recursive=TRUE))
 names(dataAir) <- paste0("file", seq(1:length(dataAir)))
 
 dataWater <- as.list(list.files(
-    path="c:/Users/95218.CHARLOTTE/Documents/R/MC5-Hobo-Files",
+    path="c:/Users/95218/Documents/R/MC5",
     pattern="Water.*\\.csv", recursive=TRUE))
 names(dataAir) <- paste0("file",seq(1:length(dataAir)))
 
@@ -73,7 +73,6 @@ names(dataAir) <- paste0("file",seq(1:length(dataAir)))
 waterList <- lapply(dataWater, readHoboInterp)
 waterFrame <- do.call("rbind", waterList)
 waterFrame <- waterFrame[order(waterFrame$dt), ]
-
 dimnames(waterFrame$MC5ModlPsi) <- NULL
 dimnames(waterFrame$MC5ModlTempF) <- NULL
 
@@ -81,6 +80,11 @@ dimnames(waterFrame$MC5ModlTempF) <- NULL
 waterFrame$MC5ModlHPa <- waterFrame$MC5ModlPsi*68.94757
 waterFrame$MC5ModlTempC <- (waterFrame[,"MC5ModlTempF"]-32)/1.8
 
+## Drop the [:,1] structure
+waterFrame$MC5ModlPsi <- waterFrame$MC5ModlPsi[,1]
+waterFrame$MC5ModlTempF <- waterFrame$MC5ModlTempF[,1]
+waterFrame$MC5ModlHPa <- waterFrame$MC5ModlHPa[,1]
+waterFrame$MC5ModlTempC <- waterFrame$MC5ModlTempC[,1]
 
 ## Pass df of air press. file names to f(), rbind results, sort
 airList <- lapply(dataAir, readHoboInterp)
@@ -97,6 +101,12 @@ dimnames(airFrame$MC5ModlTempF) <- NULL
 ## Some unit conversions
 airFrame$MC5ModlHPa <- airFrame$MC5ModlPsi*68.94757
 airFrame$MC5ModlTempC <- (airFrame[,"MC5ModlTempF"]-32)/1.8
+
+## Drop the [:,1] structure
+airFrame$MC5ModlPsi <- airFrame$MC5ModlPsi[,1]
+airFrame$MC5ModlTempF <- airFrame$MC5ModlTempF[,1]
+airFrame$MC5ModlHPa <- airFrame$MC5ModlHPa[,1]
+airFrame$MC5ModlTempC <- airFrame$MC5ModlTempC[,1]
 
 rm(dataAir, dataWater, readHoboInterp, gapFill, waterList, airList)
 
@@ -150,7 +160,7 @@ dateTicks <- seq.POSIXt(from=min(cDoug$dt, na.rm=TRUE),
                       to=max(cDoug$dt, na.rm=TRUE),
                       by="month")
 
-graphics.off()
+##graphics.off()
 ##pdf(file="MC5 Pressure.pdf", width=10, height=7.5)
 dev.new(width=10,height=7.5, xpos=1930,ypos=65)
 par(xaxs="i", yaxs="i", mai=c(1,1.5,.5,.5), font=2,
@@ -332,9 +342,9 @@ points(airFrame$dt, airFrame$MC5ModlHPa, pch=16, cex=0.3,
 
 
 
-## Merge stuff back together
-
-## 14941
+## Now go back into airFrame, find the gaps (NAs), and write in the
+## value calculated from the airport.
+## 14941 dt NAs to start, none after running
 for (j in 1:nrow(airFrame)) {
     if (is.na(airFrame$MC5ModlHPa[j])) {
         airFrame$MC5ModlHPa[j] <-
@@ -348,8 +358,8 @@ dateTicks <- seq.POSIXt(from=min(waterFrame$dt,airFrame$dt,na.rm=TRUE),
                       to=max(waterFrame$dt,airFrame$dt,na.rm=TRUE),
                       by="month")
 
-graphics.off()
-##pdf(file="MC5 Pressure.pdf", width=10, height=7.5)
+## graphics.off()
+## pdf(file="MC5 Pressure.pdf", width=10, height=7.5)
 dev.new(width=10,height=7.5, xpos=1930,ypos=65)
 par(xaxs="i", yaxs="i", mai=c(1,1.5,.5,.5), font=2,
     cex.axis=1.2, family="serif", omi=rep(0,4))
@@ -362,178 +372,42 @@ axis(2, las=2)
 mtext(side=2, "Pressure (psi)", line=3.5, cex=1.5, font=2)
 legend("topleft", legend=c("Water", "Air"), pch=16, pt.cex=.75,
        col=c("black", "red"), bty="n", cex=1.5)
-##dev.off()
+## dev.off()
 
 
+## To water depth
 
+## Diffentiate col names in airFRame
+names(airFrame) <- c("dt","MC5ModlPsiA","MC5ModlTempFA","MC5ModlHPaA","MC5ModlTempCA")
 
+## Merge and air and water
+pressureFrame <- merge(airFrame, waterFrame, by="dt", all=TRUE)
+pressureFrame$WaterHPa <- pressureFrame$MC5ModlHPa-pressureFrame$MC5ModlHPaA
+pressureFrame[which(pressureFrame$WaterHPa<30), c("WaterHPa","MC5ModlTempC")] <- NA
 
+## Calc density at T
+pressureFrame$WaterRhoKgM3 <- 1000-(0.019549*abs(pressureFrame$MC5ModlTempC-3.98)^1.68)
 
+## Calc depth given pressure and density
+pressureFrame$WaterMeters <-
+    (pressureFrame$WaterHPa*100)/(pressureFrame$WaterRhoKgM3*9.8)
 
 
+## graphics.off()
+## pdf(file="MC5 Pressure.pdf", width=10, height=7.5)
+dev.new(width=10,height=7.5, xpos=1930,ypos=65)
+par(xaxs="i", yaxs="i", mai=c(1,1.5,.5,.5), font=2,
+    cex.axis=1.2, family="serif", omi=rep(0,4))
+plot(pressureFrame$dt, pressureFrame$WaterHPa, pch=16,
+     axes=FALSE, xlab="", ylab="", cex=.2, ylim=c(0,250))
+##points(airFrame$dt, airFrame$MC5ModlHPa, pch=16, col="red", cex=.2)
+box()
+axis.POSIXct(side=1, at=dateTicks, x=dateTicks, format="%b-%y")
+axis(2, las=2)
+mtext(side=2, "Pressure (psi)", line=3.5, cex=1.5, font=2)
+legend("topleft", legend=c("Water", "Air"), pch=16, pt.cex=.75,
+       col=c("black", "red"), bty="n", cex=1.5)
+## dev.off()
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-## Back fill air sensor data from Airport data
-
-##############################################################################
-## Make a plot and fit a regression between air sensor temp and CLT temp
-## Merge subset of CLT and MC5 that naturally co-occur in time
-compareTemps <- merge(cDoug, airFrame, by="dt", all=FALSE)
-
-## Do plotting
-dev.new()
-par(xaxs="i", yaxs="i")
-plot(compareTemps$CLTTempC,(compareTemps$MC5ModlTempF-32)/1.8, pch=16,
-     ylim=c(-14,42), xlim=c(-14,42), cex=.3)
-lines(x=c(-14,42), y=c(-14,42), col="red", lwd=2)
-
-## Do regresion fit and more plotting
-dataModel <- lm(((compareTemps$MC5ModlTempF-32)/1.8)~compareTemps$CLTTempC)
-tidy1 <- tidy(dataModel)
-lines(x=c(-9,38),y=c(tidy1$estimate[2]*-9+tidy1$estimate[1],
-                     tidy1$estimate[2]*38+tidy1$estimate[1]),
-      col="blue",lwd=2)
-glance(dataModel)
-
-##############################################################################
-## Temperature regression, interpolate 5 min CLT temp
-
-regTS <- data.frame(dt=seq.POSIXt(to=tail(cDoug$dt,6)[6], by=300,
-                                  from=round(cDoug$dt[1],"mins")-
-                                      (round(cDoug$dt[1],"mins")$min%%5)*60),
-                    kp=1)
-
-cDougReg <- merge(cDoug, regTS, by="dt", all=TRUE)
-## Apparently unnecessary, previously incorrect (used sum)....
-## ... could be used to average duplicate time stamp data, but there are none....
-##cDoug2  <- aggregate(cDoug[ ,c(3,4,5,6)], by=list(cDoug$dt), mean)
-
-## Interpolate the temperature series to the even 5 min time stamps
-zooObj1 <- zoo(cDougReg$CLTTempC, cDougReg$dt)
-spline1 <- na.spline(zooObj1, na.rm=FALSE)
-cDougReg$CLTModlTempC <- coredata(spline1)
-
-## Interpolate the hpa series to the even 5 min time stamps
-zooObj2 <- zoo(cDougReg$CLTSlpHgIn, cDougReg$dt)
-spline2 <- na.spline(zooObj2, na.rm=FALSE)
-cDougReg$CLTModlSlpHgIn <- coredata(spline2)
-
-## Merge and compare again... very similar model
-compareTemps2 <- merge(cDougReg, airFrame, by.x="dt", by.y="dt",
-                       all=FALSE)
-dev.new()
-plot(compareTemps2$CLTModlTempC,(compareTemps2$MC5ModlTempF-32)/1.8, pch=16,
-     ylim=c(-14,42), xlim=c(-14,42), cex=.3)
-lines(x=c(-14,42), y=c(-14,42),col="red", lwd=2)
-
-modelModel <- lm(((compareTemps2$MC5ModlTempF-32)/1.8)~
-                     compareTemps2$CLTModlTempC)
-tidy2 <- tidy(modelModel)
-lines(x=c(-9,38), y=c(tidy2$estimate[2]*-9+tidy2$estimate[1],
-                     tidy2$estimate[2]*38+tidy2$estimate[1]),
-      col="blue", lwd=2)
-glance(modelModel)
-
-
-##
-
-## Do regression back fill from dataModel (not modelModel)
-af3 <- merge(airFrame, cDougReg, by.x="dt", by.y="dt", all=FALSE)
-af3[,"MC5ModlTempC"] <- (af3[,"MC5ModlTempF"]-32)/1.8
-
-af3[which(is.na(af3[,"MC5ModlTempC"])),"MC5ModlTempC"] <-
-    tidy1$estimate[2]*af3[which(is.na(af3[,"MC5ModlTempC"])),"CLTModlTempC"]+
-    tidy1$estimate[1]
-
-## Compute pressure
-af3$mc5HPa <- af3$modPsi*68.9475729
-af3[which(is.na(af3[,"mc5HPa"])),"mc5HPa"] <-
-
-
-## Alt, convert sea level press direct to Reedy station pressure
-for (j in 1:nrow(af3)) {
-    currentMatch <- j
-    tempA <- af3$mc5tempC[currentMatch]
-    minus12 <- which(abs(af3$dt-(af3$dt[j]-(60*60*12)))==
-                     min(abs(af3$dt-(af3$dt[j]-(60*60*12)))))
-    tempB <- af3$mc5tempC[minus12]
-    T <- (sum(tempA,tempB,na.rm=TRUE)/2) +273
-    af3$mc5HPaCLT[j] <-
-        af3$modHPa[j]*exp(-((668)/3.2808)/(T*29.263))
-    rm(tempA,tempB,T)
-}
-
-af3$mc5HPa[which(is.na(af3[,"mc5HPa"]))] <-
-    af3$mc5HPaCLT[which(is.na(af3[,"mc5HPa"]))]
-
-dev.new()
-plot(af3[,10], af3[,11], pch=16,cex=.5)
-
-
-
-
-
-
-points(cDoug$dt, cDoug$my13BPressB,pch=16,cex=.25,col="navy")
-
-plot(cDoug$my13BPress,cDoug$my13BPressB)
-summary(lm(cDoug$my13BPress~cDoug$my13BPressB))
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-plot(cDoug$dt,cDoug$tempC, pch=16, cex=.5)
-points(airFrame$dt,(airFrame[,3]-32)/1.8,col="blue")
-
-
-
-
-## Alt, convert sea level press direct to Reedy station pressure
-for (i in 1:nrow(cDoug)) {
-    currentMatch <-
-       which(abs(my13Batm$dt-cDoug$dt[j])==min(abs(my13Batm$dt-cDoug$dt[j])))
-    tempA <- my13Batm$temp[currentMatch]
-    minus12 <- which(abs(my13Batm$dt-(cDoug$dt[j]-(60*60*12)))==min(abs(my13Batm$dt-(cDoug$dt[j]-(60*60*12)))))
-    tempB <- my13Batm$temp[minus12]
-    T <- (sum(tempA,tempB,na.rm=TRUE)/2) +273
-    cDoug$my13BPressB[j] <-
-        cDoug$slpHPa[j]*exp(-((638)/3.2808)/(T*29.263))
-    rm(tempA,tempB,T)
-}
-points(cDoug$dt, cDoug$my13BPressB,pch=16,cex=.25,col="navy")
-
-plot(cDoug$my13BPress,cDoug$my13BPressB)
-summary(lm(cDoug$my13BPress~cDoug$my13BPressB))
-
-
-
-
-
-
-## Just to see
-dev.new()
-plot(cDoug$dt,cDoug$slpHPa, pch=16, cex=.5, ylim=c(960,1040))
+## Write File
