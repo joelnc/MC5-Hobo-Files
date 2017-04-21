@@ -4,6 +4,7 @@ output: html_document
 ---
 The markdown file documents the data processing of Hobo pressure
 records collected at the MC5 / McDowell Trib monitoring location.
+
 ***
 ## Standard Initialization and Needed Libraries
 ```{r}
@@ -15,8 +16,9 @@ library("zoo")
 library("broom")
 
 ## Set working directory
-setwd("c:/Users/95218/Documents/R/MC5")
+#setwd("c:/Users/95218/Documents/R/MC5")
 ```
+
 ***
 # Define a Function to Read In Raw .csv Files
 The atmospheric and water pressure files are not necessarily
@@ -24,11 +26,13 @@ synchronized in time.  Use a spline fit to predict data on the 0:00,
 0:05, 0:10 stamps, from the raw data which may be 0:02, 0:07, 0:12, ....
 
 ```{R}
-## Function to run through a list of data framess, name columns, covert dates
+
+## Define a function to run through a list of dfs, name cols, covert dates
 readHoboInterp <- function(dataFile) {
     ## Read in file, rename resulting df columns
-    data <- read.csv(paste0("c:/Users/95218/Documents/R/MC5/", dataFile),
-                  sep=",", stringsAsFactors=FALSE, skip=1, header=TRUE)
+    data <- read.csv(paste0(
+        "c:/Users/95218.CHARLOTTE/Documents/R/MC5-Hobo-Files/", dataFile),
+        sep=",", stringsAsFactors=FALSE, skip=1, header=TRUE)
     data <- data[ ,c(2,3,4)]
     names(data) <- c("dt", "hoboPSI", "hoboF")
 
@@ -40,7 +44,7 @@ readHoboInterp <- function(dataFile) {
     ## Create regulalry spaced 5 minute time series overlapping data file
     regTS <- data.frame(dt=seq.POSIXt(to=tail(data$dt,6)[6], by=300,
                       from=round(data$dt[1],"mins")-
-                          (round(data$dt[1],"mins")$min%%5)*60), kp=1)
+                          (round(data$dt[1],"mins")$min%%5)*60),kp=1)
 
     ## Merge even spaced dt with raw data frame
     dataMerged <- merge(data, regTS, by="dt", all=TRUE)
@@ -48,12 +52,12 @@ readHoboInterp <- function(dataFile) {
     ## Interpolate the psi series to the even 5 min time stamps
     zooObj <- zoo(dataMerged[2], dataMerged$dt)
     spline1 <- na.spline(zooObj, na.rm=FALSE)
-    dataMerged$modPsi <- coredata(spline1)
+    dataMerged$MC5ModlPsi <- coredata(spline1)
 
     ## Interpolate the temperature series to the even 5 min time stamps
     zooObj2 <- zoo(dataMerged[3], dataMerged$dt)
     spline2 <- na.spline(zooObj2, na.rm=FALSE)
-    dataMerged$modTemp <- coredata(spline2)
+    dataMerged$MC5ModlTempF <- coredata(spline2)
 
     ## drop all but dt, interp temp, interp psi
     dataMerged <- dataMerged[which(dataMerged$kp==1),c(1,5,6)]
@@ -65,12 +69,14 @@ readHoboInterp <- function(dataFile) {
 # Create file lists of all air and water files in the given directory
 ```{r}
 ## Read the directories of files that CB sent
-dataAir <- as.list(list.files(path="c:/Users/95218/Documents/R/MC5",
-                      pattern="Air.*\\.csv", recursive=TRUE))
+dataAir <- as.list(list.files(
+    path="c:/Users/95218.CHARLOTTE/Documents/R/MC5-Hobo-Files",
+    pattern="Air.*\\.csv", recursive=TRUE))
 names(dataAir) <- paste0("file", seq(1:length(dataAir)))
 
-dataWater <- as.list(list.files(path="c:/Users/95218/Documents/R/MC5",
-                    pattern="Water.*\\.csv", recursive=TRUE))
+dataWater <- as.list(list.files(
+    path="c:/Users/95218.CHARLOTTE/Documents/R/MC5-Hobo-Files",
+    pattern="Water.*\\.csv", recursive=TRUE))
 names(dataAir) <- paste0("file",seq(1:length(dataAir)))
 ```
 
@@ -93,12 +99,13 @@ airFrame <- airFrame[order(airFrame$dt), ]
 gapFill <- data.frame(dt=seq.POSIXt(to=tail(airFrame$dt,6)[6], by=300,
                       from=airFrame$dt[1]))
 airFrame <- merge(airFrame, gapFill, by="dt", all=TRUE)
+dimnames(airFrame$MC5ModlPsi) <- NULL
+dimnames(airFrame$MC5ModlTempF) <- NULL
 
-## Drop nested names
-dimnames(airFrame$modPsi) <- NULL
-dimnames(airFrame$modTemp) <- NULL
+## Some unit conversions
+airFrame$MC5ModlHPa <- airFrame$MC5ModlPsi*68.94757
+airFrame$MC5ModlTempC <- (airFrame[,"MC5ModlTempF"]-32)/1.8
 
-## Clean up
 rm(dataAir, dataWater, readHoboInterp, gapFill, waterList, airList)
 ```
 ***
@@ -113,65 +120,185 @@ dateTicks <- seq.POSIXt(from=min(waterFrame$dt,airFrame$dt,na.rm=TRUE),
                       to=max(waterFrame$dt,airFrame$dt,na.rm=TRUE),
                       by="month")
 
-## pdf(file="MC5 Pressure.pdf", width=10, height=7.5) # to plot to pdf
-#dev.new(width=10,height=7.5, xpos=1930,ypos=65)
+##graphics.off()
+##pdf(file="MC5 Pressure.pdf", width=10, height=7.5)
+##dev.new(width=10,height=7.5, xpos=1930,ypos=65)
 par(xaxs="i", yaxs="i", mai=c(1,1.5,.5,.5), font=2,
     cex.axis=1.2, family="serif", omi=rep(0,4))
-plot(waterFrame$dt, waterFrame$modPsi, pch=16,
+plot(waterFrame$dt, waterFrame$MC5ModlPsi, pch=16,
      axes=FALSE, xlab="", ylab="", ylim=c(13,18), cex=.2)
-points(airFrame$dt, airFrame$modPsi, pch=16, col="red", cex=.2)
+points(airFrame$dt, airFrame$MC5ModlPsi, pch=16, col="red", cex=.2)
 box()
 axis.POSIXct(side=1, at=dateTicks, x=dateTicks, format="%b-%y")
 axis(2, las=2)
 mtext(side=2, "Pressure (psi)", line=3.5, cex=1.5, font=2)
-legend("topleft", legend=c("Air", "Water"), pch=16,
-       col=c("red", "black"), bty="n", pt.cex=0.75, cex=1.5)
-## dev.off() # to close pdf device, when using
+legend("topleft", legend=c("Water", "Air"), pch=16, pt.cex=.75,
+       col=c("black", "red"), bty="n", cex=1.5)
+##dev.off()
 ```
 
 ******
-# Load CLT Airport Data File
+## Load CLT Airport Data File
 From
-[NOAA, Mecklenburg/ FIPS:37119](https://www.ncdc.noaa.gov/cdo-web/search),
-hourly nomrals.
+[NOAA, Mecklenburg/CLT](https://www.ncdc.noaa.gov/cdo-web/datatools/lcd),
+get CLT Airport climate data, save at a .csv.
 
 ```{r}
 ## Load in the Airport data, format and clean up NAs
-cDoug <- read.csv("charDougMet.txt", header=FALSE, skip=2,
+cDoug <- read.csv("CLTMet.csv", header=TRUE, sep=",",
                   stringsAsFactors=FALSE)
-cDoug <- cDoug[ ,c(3,4,21,25)]
+cDoug <- cDoug[ ,c("DATE","HOURLYSeaLevelPressure",
+                   "HOURLYStationPressure", "HOURLYDRYBULBTEMPC")]
+cDoug$dt <- as.POSIXct(cDoug$DATE, format="%m/%d/%Y %H:%M",
+                       tz="America/Panama")
+## Rename, Slp=sea level press., Stp=station pressure.
+names(cDoug) <- c("date", "CLTSlpHgIn", "CLTStpHgIn", "CLTTempC", "dt")
+
+cDoug$CLTSlpHgIn <- as.numeric(cDoug$CLTSlpHgIn)
+cDoug$CLTStpHgIn <- as.numeric(cDoug$CLTStpHgIn)
+cDoug$CLTSlpHPa <- cDoug$CLTSlpHgIn*33.8639
+
+cDoug$CLTTempC <- as.numeric(cDoug$CLTTempC)
+
+```
+
+Plot the pressure series.
+```{r}
+## Plot spline fits of raw pressure files
+dateTicks <- seq.POSIXt(from=min(cDoug$dt, na.rm=TRUE),
+                      to=max(cDoug$dt, na.rm=TRUE),
+                      by="month")
+
+## graphics.off()
+## pdf(file="MC5 Pressure.pdf", width=10, height=7.5)
+## dev.new(width=10,height=7.5, xpos=1930,ypos=65)
+par(xaxs="i", yaxs="i", mai=c(1,1.5,.5,.5), font=2,
+    cex.axis=1.2, family="serif", omi=rep(0,4))
+plot(cDoug$dt, cDoug$CLTSlpHgIn, pch=16,
+     axes=FALSE, xlab="", ylab="", ylim=c(28,32), cex=.2)
+points(cDoug$dt, cDoug$CLTStpHgIn, pch=16, col="red", cex=.2)
+box()
+axis.POSIXct(side=1, at=dateTicks, x=dateTicks, format="%b-%y")
+axis(2, las=2)
+mtext(side=2, "Pressure (HgIn)", line=3.5, cex=1.5, font=2)
+legend("topleft", legend=c("Sea Level Pressure", "Station Pressure"),
+       pch=16, pt.cex=.75, col=c("black", "red"), bty="n", cex=1.5)
+##dev.off()
 ```
 
 
-```{r}
+## Next, see how well CLT pressure data corresponds with MC5
+## barometric pressure
+We'll need to back fill the MC5 barometric pressure series to cover
+   the gap from mid-July 2015 to Sept. 2015.  This can be done by
+   taking CLT Sea Level Pressure and converting it MC5 pressure using
+   the MC5 elevation and temperatures.  Below is a (slow) loop to do
+   just that.
 
-for (i in 1:nrow(cDoug)) {
-    if (nchar(cDoug$V4[i])==3) {
-        cDoug$V4[i] <- paste0("0",cDoug$V4[i])
-    }
-    if (nchar(cDoug$V4[i])==2) {
-        cDoug$V4[i] <- paste0("00",cDoug$V4[i])
-    }
-    if (nchar(cDoug$V4[i])==1) {
-        cDoug$V4[i] <- paste0("000",cDoug$V4[i])
-    }
-    if (!is.na(cDoug$V25[i]) & cDoug$V25[i]>9000) {
-        cDoug$V25[i] <- NA
-    }
-    if (!is.na(cDoug$V21[i]) & cDoug$V21[i]>800) {
-        cDoug$V21[i] <- NA
-    }
+```{R}
+## Loop over cDoug records and convert cDoug SLP to station pressure
+## at MC5 using MC5 temperature...
+for (j in 1:nrow(cDoug)) {
+    currentMatch <- j
+    currentIndex <- which(abs(airFrame$dt-cDoug$dt[j])==
+                     min(abs(airFrame$dt-cDoug$dt[j])))
+
+    tempA <- airFrame$MC5ModlTempC[currentIndex]
+    ## tempA <- cDoug$CLTTempC[currentMatch]
+    minus12 <- which(abs(airFrame$dt-(cDoug$dt[j]-(60*60*12)))==
+                     min(abs(airFrame$dt-(cDoug$dt[j]-(60*60*12)))))
+    tempB <- airFrame$MC5ModlTempC[minus12]
+    T <- (sum(tempA,tempB,na.rm=TRUE)/2) +273
+    cDoug$MC5StpHpa[j] <-
+        cDoug$CLTSlpHPa[j]*exp(-((668)/3.2808)/(T*29.263))
+    rm(tempA,tempB,T)
+}
+```
+Next, we'll put together all data where at given time stamp we have 1)
+    a barometric pressure reading at MC5, and 2) an estimate of
+    barometric pressure at MC5 calculated using MC5 temperature
+    records, and then make a plot.
+
+```{r}
+## Merge the MC5 File with the cDoug file to see how well actual MC5 HPa
+## corresponds with CLT estimated MC5 HPa
+tempData <- merge(cDoug, airFrame, by="dt", all=FALSE)
+
+##dev.new(width=10,height=7.5, xpos=1930,ypos=65)
+par(xaxs="i", yaxs="i", mai=c(1.25,1.25,.5,.5), font=2,
+    cex.axis=1.2, family="serif", omi=rep(0,4), cex=1.3)
+plot(x=tempData$MC5StpHpa, y=tempData$MC5ModlHPa, pch=16,
+     cex=.2, xlim=c(970,1020), ylim=c(970,1020),
+     xlab="Computed Pressure at MC5 (HPa)",
+     ylab="Measured Pressure at MC5 (HPa)")
+box()
+lines(x=c(970,1020), y=c(970,1020), col="red", lwd=2, lty=2)
+
+dataModel <- lm(tempData$MC5ModlHPa~tempData$MC5StpHpa)
+tidy1 <- tidy(dataModel)
+lines(x=c(974,1017),y=c(tidy1$estimate[2]*974+tidy1$estimate[1],
+                     tidy1$estimate[2]*1017+tidy1$estimate[1]),
+      col="blue",lwd=2)
+glance(dataModel)
+
+legend("topleft", legend=c("1:1", "Regression"),
+       pch=NA, lty=c(2,1), lwd=2, col=c("red", "blue"),
+       bty="n", cex=1.3)
+##dev.off()
+```
+
+
+## Now... where we have gaps in MC5 Barometric, we also have gaps in
+## MC5 Tempertature.  So it is of interest how well we can predict
+## MC3 Pressure using Temperature measured at the Airport
+
+```{r}
+## Similar loop as in above, but grabbing average temperature from
+## CLT rather than from MC5
+
+for (j in 1:nrow(cDoug)) {
+    currentMatch <- j
+    currentIndex <- which(abs(cDoug$dt-cDoug$dt[j])==
+                     min(abs(cDoug$dt-cDoug$dt[j])))
+
+    tempA <- cDoug$CLTTempC[currentIndex]
+    ## tempA <- cDoug$CLTTempC[currentMatch]
+    minus12 <- which(abs(cDoug$dt-(cDoug$dt[j]-(60*60*12)))==
+                     min(abs(cDoug$dt-(cDoug$dt[j]-(60*60*12)))))
+    tempB <- cDoug$CLTTempC[minus12]
+    T <- (sum(tempA,tempB,na.rm=TRUE)/2) +273
+    cDoug$MC5StpHpaViaClt[j] <-
+        cDoug$CLTSlpHPa[j]*exp(-((668)/3.2808)/(T*29.263))
+    rm(tempA,tempB,T)
 }
 
-## Date and time are in UTC, stored numeric.  Do some base R gymnastics to
-## convert to a EST posix.ct value.
-cDoug$dt <- strptime(x=paste(cDoug$V3, cDoug$V4, sep=""),
-                     format="%Y%m%d %H%M", tz="UTC") ## make date time obj
-cDoug$dt <- as.POSIXct(cDoug$dt) ## convert from lt to ct
-## Format to an EST character array
-cDoug$dt <- format(cDoug$dt, tz="America/Panama", usetz=TRUE)
-## as.POSIXct it again away from chr...
-cDoug$dt <- as.POSIXct(cDoug$dt, format="%Y-%m-%d %T", tz="America/Panama")
 
-names(cDoug) <- c("date", "time", "tempC", "slpHPa", "dt")
+## Merge the MC5 File with the cDoug file to see how well actual MC5 HPa
+## corresponds with CLT estimated MC5 HPa that is now estimated via
+## Airport tempraturte records
+tempData2 <- merge(cDoug, airFrame, by="dt", all=FALSE)
+
+##dev.new(width=10,height=7.5, xpos=1930,ypos=65)
+par(xaxs="i", yaxs="i", mai=c(1.25,1.25,.5,.5), font=2,
+    cex.axis=1.2, family="serif", omi=rep(0,4), cex=1.3)
+plot(x=tempData2$MC5StpHpaViaClt, y=tempData2$MC5ModlHPa, pch=16,
+     cex=.2, xlim=c(970,1020), ylim=c(970,1020),
+     xlab="Computed Pressure at MC5 (HPa)",
+     ylab="Measured Pressure at MC5 (HPa)")
+box()
+lines(x=c(970,1020), y=c(970,1020), col="red", lwd=2, lty=2)
+
+dataModel2 <- lm(tempData2$MC5ModlHPa~tempData2$MC5StpHpaViaClt)
+tidy2 <- tidy(dataModel2)
+lines(x=c(974,1017),y=c(tidy2$estimate[2]*974+tidy2$estimate[1],
+                     tidy2$estimate[2]*1017+tidy2$estimate[1]),
+      col="blue",lwd=2)
+
+legend("topleft", legend=c("1:1", "Regression"),
+       pch=NA, lty=c(2,1), lwd=2, col=c("red", "blue"),
+       bty="n", cex=1.3)
+##dev.off()
+
+glance(dataModel2)
+tidy2
 ```
