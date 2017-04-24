@@ -174,21 +174,31 @@ legend("topleft", legend=c("Sea Level Pressure", "Station Pressure"),
 ##############################################################################
 ## Loop over cDoug records and convert cDoug SLP to station pressure
 ## at MC5 using MC5 temperature...
+
+##system.time({
 for (j in 1:nrow(cDoug)) {
     currentMatch <- j
-    currentIndex <- which(abs(airFrame$dt-cDoug$dt[j])==
-                     min(abs(airFrame$dt-cDoug$dt[j])))
+    ## currentIndex <- which(abs(airFrame$dt-cDoug$dt[j])==
+    ##                  min(abs(airFrame$dt-cDoug$dt[j])))
+
+    currentIndex <- which.min(abs(airFrame$dt-cDoug$dt[j]))
 
     tempA <- airFrame$MC5ModlTempC[currentIndex]
     ## tempA <- cDoug$CLTTempC[currentMatch]
-    minus12 <- which(abs(airFrame$dt-(cDoug$dt[j]-(60*60*12)))==
-                     min(abs(airFrame$dt-(cDoug$dt[j]-(60*60*12)))))
+    ## minus12 <- which(abs(airFrame$dt-(cDoug$dt[j]-(60*60*12)))==
+    ##                  min(abs(airFrame$dt-(cDoug$dt[j]-(60*60*12)))))
+    minus12 <- which.min(abs(airFrame$dt-(cDoug$dt[j]-(60*60*12))))
+
     tempB <- airFrame$MC5ModlTempC[minus12]
     T <- (sum(tempA,tempB,na.rm=TRUE)/2) +273
     cDoug$MC5StpHpa[j] <-
         cDoug$CLTSlpHPa[j]*exp(-((668)/3.2808)/(T*29.263))
     rm(tempA,tempB,T)
 }
+##})
+
+##cDoug$MC5StpHpa <- NULL
+## 180 seconds to 68
 
 ## Merge the MC5 File with the cDoug file to see how well actual MC5 HPa
 ## corresponds with CLT estimated MC5 HPa
@@ -222,23 +232,30 @@ legend("topleft", legend=c("1:1", "Regression"),
 ##  have MC5 tempertature.  So, compute MC5 pressure using CLT temperature,
 ## and see how well that corresponds..
 
+##system.time({
 for (j in 1:nrow(cDoug)) {
     currentMatch <- j
-    currentIndex <- which(abs(cDoug$dt-cDoug$dt[j])==
-                     min(abs(cDoug$dt-cDoug$dt[j])))
+    ## currentIndex <- which(abs(cDoug$dt-cDoug$dt[j])==
+    ##                  min(abs(cDoug$dt-cDoug$dt[j])))
+    currentIndex <- which.min(abs(cDoug$dt-cDoug$dt[j]))
+
 
     tempA <- cDoug$CLTTempC[currentIndex]
     ## tempA <- cDoug$CLTTempC[currentMatch]
-    minus12 <- which(abs(cDoug$dt-(cDoug$dt[j]-(60*60*12)))==
-                     min(abs(cDoug$dt-(cDoug$dt[j]-(60*60*12)))))
+    ## minus12 <- which(abs(cDoug$dt-(cDoug$dt[j]-(60*60*12)))==
+    ##                  min(abs(cDoug$dt-(cDoug$dt[j]-(60*60*12)))))
+    minus12 <- which.min(abs(cDoug$dt-(cDoug$dt[j]-(60*60*12))))
+
     tempB <- cDoug$CLTTempC[minus12]
     T <- (sum(tempA,tempB,na.rm=TRUE)/2) +273
     cDoug$MC5StpHpaViaClt[j] <-
         cDoug$CLTSlpHPa[j]*exp(-((668)/3.2808)/(T*29.263))
     rm(tempA,tempB,T)
 }
+##})
 
-
+##cDoug$MC5StpHpaViaClt <- NULL
+## 21 seconds to 9 seconds on this one
 ## Merge the MC5 File with the cDoug file to see how well actual MC5 HPa
 ## corresponds with CLT estimated MC5 HPa that is now estimated via
 ## Airport tempraturte records
@@ -290,21 +307,30 @@ spline2 <- na.spline(zooObj2, na.rm=FALSE)
 cDoug5Min$CLTModlSlpHPa <- coredata(spline2)
 
 ## Slow....
+
+system.time({
 for (j in 1:nrow(cDoug5Min)) {
     currentMatch <- j
-    currentIndex <- which(abs(cDoug5Min$dt-cDoug5Min$dt[j])==
-                     min(abs(cDoug5Min$dt-cDoug5Min$dt[j])))
+    ## currentIndex <- which(abs(cDoug5Min$dt-cDoug5Min$dt[j])==
+    ##                  min(abs(cDoug5Min$dt-cDoug5Min$dt[j])))
+    currentIndex <- which.min(abs(cDoug5Min$dt-cDoug5Min$dt[j]))
 
     tempA <- cDoug5Min$CLTModlTempC[currentIndex]
     ## tempA <- cDoug5Min$CLTTempC[currentMatch]
-    minus12 <- which(abs(cDoug5Min$dt-(cDoug5Min$dt[j]-(60*60*12)))==
-                     min(abs(cDoug5Min$dt-(cDoug5Min$dt[j]-(60*60*12)))))
+    ## minus12 <- which(abs(cDoug5Min$dt-(cDoug5Min$dt[j]-(60*60*12)))==
+    ##                  min(abs(cDoug5Min$dt-(cDoug5Min$dt[j]-(60*60*12)))))
+    minus12 <- which.min(abs(cDoug5Min$dt-(cDoug5Min$dt[j]-(60*60*12))))
     tempB <- cDoug5Min$CLTModlTempC[minus12]
     T <- (sum(tempA,tempB,na.rm=TRUE)/2) +273
     cDoug5Min$MC5StpHPaViaClt[j] <-
         cDoug5Min$CLTModlSlpHPa[j]*exp(-((668)/3.2808)/(T*29.263))
     rm(tempA,tempB,T)
 }
+})
+
+
+cDoug5Min$MC5StpHPaViaClt <- NULL
+## from 28.4 minutes to minutes 12.1
 
 ## Some plotlying
 library(plotly)
