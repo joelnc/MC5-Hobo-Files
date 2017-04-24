@@ -4,25 +4,18 @@ graphics.off()
 library("zoo")
 library("broom")
 
-## Just in case
+## Set WD where referenced files are to be found
 ##setwd("c:/Users/95218/Documents/R/MC5")
-
-
-## 1) Make a regulaurly spaced airFrame, with gaps greater than 5 minutes
-## 2) Make a regualrly spaced cDoug, down to 5 minutes
-## 3) Fill in gaps in airFrame using cDoug thing
-## 4) do some diagnostic plots along the way
-##
 
 #############################################################################
 #############################################################################
 
 ## Define a function to run through a list of dfs, name cols, covert dates
 readHoboInterp <- function(dataFile) {
+    ##browser()
     ## Read in file, rename resulting df columns
-    data <- read.csv(paste0(
-        "c:/Users/95218/Documents/R/MC5/", dataFile),
-        sep=",", stringsAsFactors=FALSE, skip=1, header=TRUE)
+    data <- read.csv(paste0("c:/Users/95218/Documents/R/MC5/", dataFile),
+                     sep=",", stringsAsFactors=FALSE, skip=1, header=TRUE)
     data <- data[ ,c(2,3,4)]
     names(data) <- c("dt", "hoboPSI", "hoboF")
 
@@ -59,32 +52,31 @@ readHoboInterp <- function(dataFile) {
 #############################################################################
 
 ## Read in and format the directories of files that CB sent
-dataAir <- as.list(list.files(
-    path="c:/Users/95218/Documents/R/MC5",
-    pattern="Air.*\\.csv", recursive=TRUE))
+dataAir <- as.list(list.files(path="c:/Users/95218/Documents/R/MC5",
+                              pattern="Air.*\\.csv",
+                              recursive=TRUE))
 names(dataAir) <- paste0("file", seq(1:length(dataAir)))
 
-dataWater <- as.list(list.files(
-    path="c:/Users/95218/Documents/R/MC5",
-    pattern="Water.*\\.csv", recursive=TRUE))
+dataWater <- as.list(list.files(path="c:/Users/95218/Documents/R/MC5",
+                                pattern="Water.*\\.csv",
+                                recursive=TRUE))
 names(dataAir) <- paste0("file",seq(1:length(dataAir)))
 
 ## Pass df of water press. file names to f(), rbind results, sort
 waterList <- lapply(dataWater, readHoboInterp)
 waterFrame <- do.call("rbind", waterList)
 waterFrame <- waterFrame[order(waterFrame$dt), ]
+
+## Drop the [:,1] structure
 dimnames(waterFrame$MC5ModlPsi) <- NULL
 dimnames(waterFrame$MC5ModlTempF) <- NULL
+waterFrame$MC5ModlPsi <- waterFrame$MC5ModlPsi[,1]
+waterFrame$MC5ModlTempF <- waterFrame$MC5ModlTempF[,1]
 
 ## Some unit conversions
 waterFrame$MC5ModlHPa <- waterFrame$MC5ModlPsi*68.94757
 waterFrame$MC5ModlTempC <- (waterFrame[,"MC5ModlTempF"]-32)/1.8
 
-## Drop the [:,1] structure
-waterFrame$MC5ModlPsi <- waterFrame$MC5ModlPsi[,1]
-waterFrame$MC5ModlTempF <- waterFrame$MC5ModlTempF[,1]
-waterFrame$MC5ModlHPa <- waterFrame$MC5ModlHPa[,1]
-waterFrame$MC5ModlTempC <- waterFrame$MC5ModlTempC[,1]
 
 ## Pass df of air press. file names to f(), rbind results, sort
 airList <- lapply(dataAir, readHoboInterp)
@@ -95,18 +87,16 @@ airFrame <- airFrame[order(airFrame$dt), ]
 gapFill <- data.frame(dt=seq.POSIXt(to=tail(airFrame$dt,6)[6], by=300,
                       from=airFrame$dt[1]))
 airFrame <- merge(airFrame, gapFill, by="dt", all=TRUE)
+
+## Drop the [:,1] structure
 dimnames(airFrame$MC5ModlPsi) <- NULL
 dimnames(airFrame$MC5ModlTempF) <- NULL
+airFrame$MC5ModlPsi <- airFrame$MC5ModlPsi[,1]
+airFrame$MC5ModlTempF <- airFrame$MC5ModlTempF[,1]
 
 ## Some unit conversions
 airFrame$MC5ModlHPa <- airFrame$MC5ModlPsi*68.94757
 airFrame$MC5ModlTempC <- (airFrame[,"MC5ModlTempF"]-32)/1.8
-
-## Drop the [:,1] structure
-airFrame$MC5ModlPsi <- airFrame$MC5ModlPsi[,1]
-airFrame$MC5ModlTempF <- airFrame$MC5ModlTempF[,1]
-airFrame$MC5ModlHPa <- airFrame$MC5ModlHPa[,1]
-airFrame$MC5ModlTempC <- airFrame$MC5ModlTempC[,1]
 
 rm(dataAir, dataWater, readHoboInterp, gapFill, waterList, airList)
 
@@ -118,7 +108,7 @@ dateTicks <- seq.POSIXt(from=min(waterFrame$dt,airFrame$dt,na.rm=TRUE),
                       to=max(waterFrame$dt,airFrame$dt,na.rm=TRUE),
                       by="month")
 
-graphics.off()
+##graphics.off()
 ##pdf(file="MC5 Pressure.pdf", width=10, height=7.5)
 dev.new(width=10,height=7.5, xpos=1930,ypos=65)
 par(xaxs="i", yaxs="i", mai=c(1,1.5,.5,.5), font=2,
@@ -282,13 +272,12 @@ tidy2
 ##  Next up, confident that airport can be used to extrapolate, lets do so, and
 ## interpolate to even 5 minute intervals to match the water pressure records
 
+## Create a regularly spaced 5 minute record, merge with CLT data
 regTS <- data.frame(dt=seq.POSIXt(to=tail(cDoug$dt,6)[6], by=300,
                                   from=round(cDoug$dt[1],"mins")-
                                       (round(cDoug$dt[1],"mins")$min%%5)*60),
                     kp=1)
-
 cDoug5Min <- merge(cDoug, regTS, by="dt", all=TRUE)
-
 
 ## Interpolate the temperature series to the even 5 min time stamps
 zooObj1 <- zoo(cDoug5Min$CLTTempC, cDoug5Min$dt)
@@ -383,7 +372,7 @@ names(airFrame) <- c("dt","MC5ModlPsiA","MC5ModlTempFA","MC5ModlHPaA","MC5ModlTe
 ## Merge and air and water
 pressureFrame <- merge(airFrame, waterFrame, by="dt", all=TRUE)
 pressureFrame$WaterHPa <- pressureFrame$MC5ModlHPa-pressureFrame$MC5ModlHPaA
-pressureFrame[which(pressureFrame$WaterHPa<30), c("WaterHPa","MC5ModlTempC")] <- NA
+pressureFrame[which(pressureFrame$WaterHPa<30), "WaterHPa"] <- NA
 
 ## Calc density at T
 pressureFrame$WaterRhoKgM3 <- 1000-(0.019549*abs(pressureFrame$MC5ModlTempC-3.98)^1.68)
@@ -411,3 +400,7 @@ legend("topleft", legend=c("Water", "Air"), pch=16, pt.cex=.75,
 
 
 ## Write File
+write.csv(pressureFrame, "MC5FullTimeSeriesOutput.csv", row.names=FALSE)
+write.csv(pressureFrame[,c("dt","WaterMeters")],
+          "MC5HoboH20Depth.csv", row.names=FALSE)
+
