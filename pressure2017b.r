@@ -67,6 +67,11 @@ waterList <- lapply(dataWater, readHoboInterp)
 waterFrame <- do.call("rbind", waterList)
 waterFrame <- waterFrame[order(waterFrame$dt), ]
 
+## ## Fill gaps with NAs, tempertature regression and pressure convr. from CLT
+## gapFill <- data.frame(dt=seq.POSIXt(to=tail(waterFrame$dt,6)[6], by=300,
+##                       from=waterFrame$dt[1]))
+## airFrame <- merge(waterFrame, gapFill, by="dt", all=TRUE)
+
 ## Drop the [:,1] structure
 dimnames(waterFrame$MC5ModlPsi) <- NULL
 dimnames(waterFrame$MC5ModlTempF) <- NULL
@@ -77,7 +82,6 @@ waterFrame$MC5ModlTempF <- waterFrame$MC5ModlTempF[,1]
 waterFrame$MC5ModlHPa <- waterFrame$MC5ModlPsi*68.94757
 waterFrame$MC5ModlTempC <- (waterFrame[,"MC5ModlTempF"]-32)/1.8
 
-
 ## Pass df of air press. file names to f(), rbind results, sort
 airList <- lapply(dataAir, readHoboInterp)
 airFrame <- do.call("rbind", airList)
@@ -85,7 +89,7 @@ airFrame <- airFrame[order(airFrame$dt), ]
 
 ## Fill gaps with NAs, tempertature regression and pressure convr. from CLT
 gapFill <- data.frame(dt=seq.POSIXt(to=tail(airFrame$dt,6)[6], by=300,
-                      from=airFrame$dt[1]))
+                      from=waterFrame$dt[1]))
 airFrame <- merge(airFrame, gapFill, by="dt", all=TRUE)
 
 ## Drop the [:,1] structure
@@ -104,7 +108,7 @@ rm(dataAir, dataWater, readHoboInterp, gapFill, waterList, airList)
 ##############################################################################
 
 ## Plot spline fits of raw pressure files
-dateTicks <- seq.POSIXt(from=min(waterFrame$dt,airFrame$dt,na.rm=TRUE),
+dateTicks <- seq.POSIXt(from=as.POSIXct("2015-04-01"), #min(waterFrame$dt,airFrame$dt,na.rm=TRUE),
                       to=max(waterFrame$dt,airFrame$dt,na.rm=TRUE),
                       by="month")
 
@@ -124,12 +128,11 @@ legend("topleft", legend=c("Water", "Air"), pch=16, pt.cex=.75,
        col=c("black", "red"), bty="n", cex=1.5)
 ##dev.off()
 
-
 ##############################################################################
 ##############################################################################
 
 ## Load in the Airport data, format and clean up NAs
-cDoug <- read.csv("CLTMet.csv", header=TRUE, sep=",",
+cDoug <- read.csv("CLTMet2.csv", header=TRUE, sep=",",
                   stringsAsFactors=FALSE)
 cDoug <- cDoug[ ,c("DATE","HOURLYSeaLevelPressure",
                    "HOURLYStationPressure", "HOURLYDRYBULBTEMPC")]
@@ -142,7 +145,6 @@ cDoug$CLTStpHgIn <- as.numeric(cDoug$CLTStpHgIn)
 cDoug$CLTSlpHPa <- cDoug$CLTSlpHgIn*33.8639
 
 cDoug$CLTTempC <- as.numeric(cDoug$CLTTempC)
-
 
 ##############################################################################
 ## Plot CLT data
