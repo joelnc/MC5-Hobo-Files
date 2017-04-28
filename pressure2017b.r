@@ -383,15 +383,13 @@ pressureFrame$WaterMeters <-
 dev.new(width=10,height=7.5, xpos=1930,ypos=65)
 par(xaxs="i", yaxs="i", mai=c(1,1.5,.5,.5), font=2,
     cex.axis=1.2, family="serif", omi=rep(0,4))
-plot(pressureFrame$dt, pressureFrame$WaterHPa, pch=16,
-     axes=FALSE, xlab="", ylab="", cex=.2, ylim=c(0,250))
+plot(pressureFrame$dt, pressureFrame$WaterMeters, pch=16,
+     axes=FALSE, xlab="", ylab="", cex=.2, ylim=c(0.5, 2.25))
 ##points(airFrame$dt, airFrame$MC5ModlHPa, pch=16, col="red", cex=.2)
 box()
 axis.POSIXct(side=1, at=dateTicks, x=dateTicks, format="%b-%y")
 axis(2, las=2)
-mtext(side=2, "Pressure (psi)", line=3.5, cex=1.5, font=2)
-legend("topleft", legend=c("Water", "Air"), pch=16, pt.cex=.75,
-       col=c("black", "red"), bty="n", cex=1.5)
+mtext(side=2, "Water Depth (m)", line=3.5, cex=1.5, font=2)
 ## dev.off()
 
 
@@ -399,4 +397,30 @@ legend("topleft", legend=c("Water", "Air"), pch=16, pt.cex=.75,
 write.csv(pressureFrame, "MC5FullTimeSeriesOutput.csv", row.names=FALSE)
 write.csv(pressureFrame[,c("dt","WaterMeters")],
           "MC5HoboH20Depth.csv", row.names=FALSE)
+
+
+## Plotly water depht
+
+p2 <- plot_ly(data=pressureFrame[2:nrow(pressureFrame),],
+             x=~dt, y=~WaterMeters,
+             type="scatter", mode="markers")
+p2
+
+
+p3 <- plot_ly(data=pressureFrame[16000:20000,],
+             x=~dt, y=~MC5ModlPsiA,
+             type="scatter", mode="markers",
+             name="Atm") %>%
+    add_trace(x=~dt, y=~MC5ModlPsi-.9,
+              type="scatter", mode="markers",
+              name="Water -0.9") %>%
+    add_trace(x=~dt, y=~MC5ModlTempCA-5,
+              type="scatter", mode="markers",
+              name="AirTemp(C) -5") %>%
+    add_trace(x=~dt, y=~MC5ModlTempC-4,
+              type="scatter", mode="markers",
+              name="WaterTemp(C) -4")
+
+p3
+
 

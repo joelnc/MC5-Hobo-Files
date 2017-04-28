@@ -109,7 +109,7 @@ airFrame <- airFrame[order(airFrame$dt), ]
 
 ## Fill gaps with NAs, tempertature regression and pressure convr. from CLT
 gapFill <- data.frame(dt=seq.POSIXt(to=tail(airFrame$dt,6)[6], by=300,
-                      from=airFrame$dt[1]))
+                      from=waterFrame$dt[1]))
 airFrame <- merge(airFrame, gapFill, by="dt", all=TRUE)
 
 ## Drop the [:,1] structure
@@ -133,7 +133,7 @@ pressure data from elsewhere (e.g, CLT).
 
 ```{r include = TRUE}
 ## Plot spline fits of raw pressure files
-dateTicks <- seq.POSIXt(from=min(waterFrame$dt,airFrame$dt,na.rm=TRUE),
+dateTicks <- seq.POSIXt(from=as.POSIXct("2015-04-01"),
                       to=max(waterFrame$dt,airFrame$dt,na.rm=TRUE),
                       by="month")
 
@@ -157,7 +157,7 @@ get CLT Airport climate data, save at a .csv.
 
 ```{r, warning=FALSE, message=FALSE}
 ## Load in the Airport data, format and clean up NAs
-cDoug <- read.csv("CLTMet.csv", header=TRUE, sep=",",
+cDoug <- read.csv("CLTMet2.csv", header=TRUE, sep=",",
                   stringsAsFactors=FALSE)
 cDoug <- cDoug[ ,c("DATE","HOURLYSeaLevelPressure",
                    "HOURLYStationPressure", "HOURLYDRYBULBTEMPC")]
@@ -411,11 +411,12 @@ pressureFrame$WaterMeters <-
 par(xaxs="i", yaxs="i", mai=c(1,1.5,.5,.5), font=2,
     cex.axis=1.2, family="serif", omi=rep(0,4))
 plot(pressureFrame$dt, pressureFrame$WaterMeters, pch=16,
-     axes=FALSE, xlab="", ylab="", cex=.2)
+     axes=FALSE, xlab="", ylab="", cex=.2, ylim=c(0.5, 2.25))
 box()
 axis.POSIXct(side=1, at=dateTicks, x=dateTicks, format="%b-%y")
 axis(2, las=2)
-mtext(side=2, "Depth (m)", line=3.5, cex=1.5, font=2)
+mtext(side=2, "Water Depth (m)", line=3.5, cex=1.5, font=2)
+## dev.off()
 ```
 
 # Write out CSV files of results
