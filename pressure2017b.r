@@ -55,12 +55,12 @@ readHoboInterp <- function(dataFile) {
 dataAir <- as.list(list.files(path="c:/Users/95218/Documents/R/MC5",
                               pattern="Air.*\\.csv",
                               recursive=TRUE))
-names(dataAir) <- paste0("file", seq(1:length(dataAir)))
+#names(dataAir) <- paste0("file", seq(1:length(dataAir)))
 
 dataWater <- as.list(list.files(path="c:/Users/95218/Documents/R/MC5",
                                 pattern="Water.*\\.csv",
                                 recursive=TRUE))
-names(dataAir) <- paste0("file",seq(1:length(dataAir)))
+#names(dataWater) <- paste0("file",seq(1:length(dataWater)))
 
 ## Pass df of water press. file names to f(), rbind results, sort
 waterList <- lapply(dataWater, readHoboInterp)
