@@ -70,12 +70,10 @@ any .cvs contiaing "air" or "water" in file names will be pulled in.
 dataAir <- as.list(list.files(
     path="c:/Users/95218/Documents/R/MC5",
     pattern="Air.*\\.csv", recursive=TRUE))
-names(dataAir) <- paste0("file", seq(1:length(dataAir)))
 
 dataWater <- as.list(list.files(
     path="c:/Users/95218/Documents/R/MC5",
     pattern="Water.*\\.csv", recursive=TRUE))
-names(dataAir) <- paste0("file",seq(1:length(dataAir)))
 ```
 
 # Pass those file lists into the function readHoboInterp (defined above)

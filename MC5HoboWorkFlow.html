@@ -196,12 +196,10 @@ readHoboInterp &lt;- function(dataFile) {
 dataAir &lt;- as.list(list.files(
     path=&quot;c:/Users/95218/Documents/R/MC5&quot;,
     pattern=&quot;Air.*\\.csv&quot;, recursive=TRUE))
-names(dataAir) &lt;- paste0(&quot;file&quot;, seq(1:length(dataAir)))
 
 dataWater &lt;- as.list(list.files(
     path=&quot;c:/Users/95218/Documents/R/MC5&quot;,
-    pattern=&quot;Water.*\\.csv&quot;, recursive=TRUE))
-names(dataAir) &lt;- paste0(&quot;file&quot;,seq(1:length(dataAir)))</code></pre>
+    pattern=&quot;Water.*\\.csv&quot;, recursive=TRUE))</code></pre>
 </div>
 <div id="pass-those-file-lists-into-the-function-readhobointerp-defined-above" class="section level1">
 <h1>Pass those file lists into the function readHoboInterp (defined above)</h1>
